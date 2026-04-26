@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Subredes Profesional</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .result-item { border-bottom: 1px solid #f1f5f9; padding: 12px 0; }
+        .result-item:last-child { border-bottom: none; }
+        .label { color: #64748b; font-size: 0.875rem; font-weight: 500; }
+        .value { color: #1e293b; font-weight: 600; font-family: 'Courier New', Courier, monospace; }
+        .badge { padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; background-color: #f8fafc; color: #64748b; font-size: 0.75rem; text-transform: uppercase; padding: 12px; }
+        td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.875rem; font-family: 'Courier New', Courier, monospace; }
+        tr:hover { background-color: #fdfdfd; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-5xl mx-auto">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-slate-800">Calculadora de Subredes</h1>
+            <p class="text-slate-500">Cálculo y desglose completo de rangos por bits activados</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Panel de Entrada -->
+            <div class="card p-6 lg:col-span-1 h-fit border-t-4 border-blue-500">
+                <h2 class="text-lg font-semibold mb-4">Configuración</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Dirección IP Base</label>
+                        <input type="text" id="ipInput" placeholder="Ej: 192.168.1.0" value="192.168.1.0" 
+                               class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Bits a activar (prestados)</label>
+                        <select id="bitsToActivate" onchange="calculate()" 
+                                class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none transition bg-white cursor-pointer">
+                            <option value="1">1 bit (2 subredes)</option>
+                            <option value="2">2 bits (4 subredes)</option>
+                            <option value="3">3 bits (8 subredes)</option>
+                            <option value="4">4 bits (16 subredes)</option>
+                            <option value="5">5 bits (32 subredes)</option>
+                            <option value="6">6 bits (64 subredes)</option>
+                            <option value="7">7 bits (128 subredes)</option>
+                            <option value="8">8 bits (256 subredes)</option>
+                        </select>
+                    </div>
+                    <button onclick="calculate()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition shadow-md active:scale-95">
+                        Generar Tabla
+                    </button>
+                </div>
+
+                <div id="errorMessage" class="hidden mt-4 p-3 bg-red-100 text-red-700 text-sm rounded-md border border-red-200"></div>
+            </div>
+
+            <!-- Panel de Resumen -->
+            <div class="card p-6 lg:col-span-2">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h2 class="text-lg font-semibold text-slate-700">Resumen Técnico</h2>
+                    <span id="resClassBadge" class="badge bg-slate-200 text-slate-700">Clase ?</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+                    <div class="result-item">
+                        <div class="label">Máscara Subnetting</div>
+                        <div id="resMask" class="value text-blue-600">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="label">Notación CIDR</div>
+                        <div id="resCidr" class="value">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="label">Octeto de Activación</div>
+                        <div id="resOctet" class="value">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="label">Hosts Totales / Red</div>
+                        <div id="resTotalHosts" class="value text-slate-600">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="label">Salto (Magic Number)</div>
+                        <div id="resJump" class="value text-orange-600">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="label">Hosts Asignables / Red</div>
+                        <div id="resUsableHosts" class="value text-green-600">-</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="label">Total Subredes</div>
+                        <div id="resSubnets" class="value">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de Rangos -->
+            <div class="card p-6 lg:col-span-3 overflow-hidden">
+                <h2 class="text-lg font-semibold mb-4 text-slate-700">Listado de Subredes y Rangos</h2>
+                <div class="overflow-x-auto border rounded-lg">
+                    <table id="subnetTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>ID de Red</th>
+                                <th>Rango de IPs Útiles</th>
+                                <th>Broadcast</th>
+                            </tr>
+                        </thead>
+                        <tbody id="subnetTableBody">
+                            <!-- Filas generadas por JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <p id="tableNotice" class="text-xs text-slate-400 mt-3 italic text-center"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function ipToLong(ip) {
+            return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
+        }
+
+        function longToIp(long) {
+            return [
+                (long >>> 24) & 0xFF,
+                (long >>> 16) & 0xFF,
+                (long >>> 8) & 0xFF,
+                long & 0xFF
+            ].join('.');
+        }
+
+        function calculate() {
+            const ipStr = document.getElementById('ipInput').value.trim();
+            const bitsToBorrow = parseInt(document.getElementById('bitsToActivate').value) || 1;
+            const errorDiv = document.getElementById('errorMessage');
+            const tableBody = document.getElementById('subnetTableBody');
+            const notice = document.getElementById('tableNotice');
+
+            // Reset tabla
+            tableBody.innerHTML = "";
+
+            const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+            if (!ipPattern.test(ipStr)) {
+                errorDiv.innerText = "Dirección IP no válida.";
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            errorDiv.classList.add('hidden');
+
+            const firstOctet = parseInt(ipStr.split('.')[0]);
+            let defaultCidr = 24;
+            let ipClass = "C";
+
+            if (firstOctet >= 1 && firstOctet <= 126) { defaultCidr = 8; ipClass = "A"; }
+            else if (firstOctet >= 128 && firstOctet <= 191) { defaultCidr = 16; ipClass = "B"; }
+            else if (firstOctet >= 192 && firstOctet <= 223) { defaultCidr = 24; ipClass = "C"; }
+            else {
+                errorDiv.innerText = "Esta IP pertenece a una clase reservada (D/E).";
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            document.getElementById('resClassBadge').innerText = `Clase ${ipClass}`;
+
+            const totalCidr = defaultCidr + bitsToBorrow;
+            const maskLong = (0xFFFFFFFF << (32 - totalCidr)) >>> 0;
+            const totalSubnets = Math.pow(2, bitsToBorrow);
+            const totalHostsPerSubnet = Math.pow(2, 32 - totalCidr);
+            
+            // Octeto de activación
+            const activeOctetNum = Math.ceil(totalCidr / 8);
+            const bitsInActiveOctet = totalCidr % 8 === 0 ? 8 : totalCidr % 8;
+            const jump = Math.pow(2, 8 - bitsInActiveOctet);
+
+            // Actualizar Resumen
+            document.getElementById('resMask').innerText = longToIp(maskLong);
+            document.getElementById('resCidr').innerText = `/${totalCidr}`;
+            document.getElementById('resOctet').innerText = `Octeto nº ${activeOctetNum}`;
+            document.getElementById('resTotalHosts').innerText = totalHostsPerSubnet.toLocaleString();
+            document.getElementById('resJump').innerText = jump;
+            document.getElementById('resSubnets').innerText = totalSubnets;
+            document.getElementById('resUsableHosts').innerText = totalHostsPerSubnet > 2 ? (totalHostsPerSubnet - 2).toLocaleString() : 0;
+
+            // Calcular y rellenar tabla
+            const baseNetId = (ipToLong(ipStr) & (0xFFFFFFFF << (32 - defaultCidr))) >>> 0;
+            
+            // Limitamos la visualización a 256 subredes para evitar bloqueos del navegador
+            const maxDisplay = Math.min(totalSubnets, 256);
+            
+            for (let i = 0; i < maxDisplay; i++) {
+                const currentNetId = (baseNetId + (i * totalHostsPerSubnet)) >>> 0;
+                const firstUsable = currentNetId + 1;
+                const broadcast = (currentNetId + totalHostsPerSubnet - 1) >>> 0;
+                const lastUsable = broadcast - 1;
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="text-slate-400 text-xs">${i + 1}</td>
+                    <td class="font-bold text-blue-600">${longToIp(currentNetId)}</td>
+                    <td>${totalHostsPerSubnet > 2 ? `${longToIp(firstUsable)} - ${longToIp(lastUsable)}` : 'N/A'}</td>
+                    <td class="text-orange-600">${longToIp(broadcast)}</td>
+                `;
+                tableBody.appendChild(row);
+            }
+
+            if (totalSubnets > 256) {
+                notice.innerText = `Mostrando las primeras 256 subredes de ${totalSubnets} totales.`;
+            } else {
+                notice.innerText = "Listado completo generado.";
+            }
+        }
+
+        window.onload = calculate;
+    </script>
+</body>
+</html>
