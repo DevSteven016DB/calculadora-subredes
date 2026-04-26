@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculadora de Subredes</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+body { font-family: 'Inter', sans-serif; background:#f1f5f9; }
+.card { background:white; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.1);}
+.label { font-size:13px; color:#64748b;}
+.value { font-weight:600; font-size:18px; margin-top:4px;}
+.badge {
+    background:#e2e8f0;
+    color:#334155;
+    font-size:12px;
+    padding:4px 10px;
+    border-radius:999px;
+    font-weight:600;
+}
+</style>
+</head>
+
+<body class="p-4 md:p-8">
+<div class="max-w-6xl mx-auto">
+
+<header class="text-center mb-8">
+<h1 class="text-3xl font-bold">Calculadora de Subredes</h1>
+<p class="text-slate-500">Cálculo y desglose completo por bits</p>
+</header>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+<!-- CONFIG -->
+<div class="card p-6 border-t-4 border-blue-500">
+<h2 class="font-semibold mb-4">Configuración</h2>
+
+<input id="ipInput" value="192.168.1.0"
+class="w-full p-2 border rounded mb-3"
+placeholder="192.168.1.0 o 192.168.1.0/26">
+
+<select id="bitsInput" class="w-full p-2 border rounded mb-3">
+<option value="1">1 bit</option>
+<option value="2">2 bits</option>
+<option value="3">3 bits</option>
+<option value="4">4 bits</option>
+<option value="5">5 bits</option>
+<option value="6">6 bits</option>
+<option value="7">7 bits</option>
+<option value="8">8 bits</option>
+</select>
+
+<button onclick="calculate()" class="w-full bg-blue-600 text-white p-2 rounded">
+Calcular
+</button>
+
+<div id="error" class="text-red-500 text-sm mt-3 hidden"></div>
+</div>
+
+<!-- RESUMEN -->
+<div class="card p-6 lg:col-span-2">
+
+<div class="flex justify-between items-center mb-4 border-b pb-2">
+<h2 class="font-semibold text-lg">Resumen Técnico</h2>
+<span id="classBadge" class="badge">CLASE C</span>
+</div>
+
+<div id="summary" class="grid grid-cols-1 sm:grid-cols-2 gap-6"></div>
+
+</div>
+
+<!-- TABLA -->
+<div class="card p-6 lg:col-span-3">
+<h2 class="font-semibold mb-4">Subredes y Rangos</h2>
+
+<div class="overflow-auto">
+<table class="w-full text-sm">
+<thead>
+<tr class="text-left text-slate-500">
+<th>#</th>
+<th>ID Red</th>
+<th>Rango útil</th>
+<th>Broadcast</th>
+</tr>
+</thead>
+<tbody id="table"></tbody>
+</table>
+</div>
+</div>
+
+</div>
+</div>
+
+<script>
+
+// VALIDAR IP
+function isValidIP(ip){
+const parts = ip.split('.');
+if(parts.length!==4) return false;
+return parts.every(p=>{
+const n=Number(p);
+return n>=0 && n<=255;
+});
+}
+
+// UTILIDADES
+function ipToLong(ip){
+return ip.split('.').reduce((acc,o)=>(acc<<8)+ +o,0)>>>0;
+}
+
+function longToIp(long){
+return [(long>>>24)&255,(long>>>16)&255,(long>>>8)&255,long&255].join('.');
+}
+
+// PARSE
+function parseInput(input){
+if(input.includes('/')){
+const [ip,cidr]=input.split('/');
+return {ip,cidr:Number(cidr)};
+}
+return {ip:input,cidr:null};
+}
+
+// MAIN
+function calculate(){
+try{
+const input=document.getElementById("ipInput").value.trim();
+const bits=Number(document.getElementById("bitsInput").value);
+const error=document.getElementById("error");
+
+const {ip,cidr}=parseInput(input);
+
+if(!isValidIP(ip)){
+error.innerText="IP inválida";
+error.classList.remove("hidden");
+return;
+}
+error.classList.add("hidden");
+
+// CLASE
+const first=parseInt(ip.split('.')[0]);
+let ipClass="C";
+let baseCidr=24;
+
+if(first>=1&&first<=126){ipClass="A";baseCidr=8;}
+else if(first>=128&&first<=191){ipClass="B";baseCidr=16;}
+else if(first>=192&&first<=223){ipClass="C";baseCidr=24;}
+
+document.getElementById("classBadge").innerText = "CLASE " + ipClass;
+
+const finalCidr = cidr ?? (baseCidr + bits);
+
+// CALCULOS
+const activeOctet = Math.ceil(finalCidr/8);
+const bitsInOctet = finalCidr%8===0?8:finalCidr%8;
+const jump = Math.pow(2,8-bitsInOctet);
+
+const totalSubnets = Math.pow(2, finalCidr - baseCidr);
+const hosts = Math.pow(2, 32-finalCidr);
+
+// MASCARA
+const mask = longToIp((0xFFFFFFFF << (32-finalCidr)) >>> 0);
+
+const baseNet = ipToLong(ip) & (0xFFFFFFFF << (32-baseCidr));
+
+// RENDER
+renderSummary(mask,finalCidr,activeOctet,hosts,jump,totalSubnets);
+renderTable(baseNet,hosts,totalSubnets);
+
+}catch(e){
+document.getElementById("error").innerText="Error en cálculo";
+}
+}
+
+// RESUMEN VISUAL EXACTO
+function renderSummary(mask,cidr,octet,hosts,jump,subnets){
+const div=document.getElementById("summary");
+
+div.innerHTML=`
+<div>
+<div class="label">Máscara Subnetting</div>
+<div class="value text-blue-600">${mask}</div>
+</div>
+
+<div>
+<div class="label">Notación CIDR</div>
+<div class="value">/${cidr}</div>
+</div>
+
+<div>
+<div class="label">Octeto de Activación</div>
+<div class="value">Octeto nº ${octet}</div>
+</div>
+
+<div>
+<div class="label">Hosts Totales / Red</div>
+<div class="value">${hosts}</div>
+</div>
+
+<div>
+<div class="label">Salto (Magic Number)</div>
+<div class="value text-orange-600">${jump}</div>
+</div>
+
+<div>
+<div class="label">Hosts Asignables / Red</div>
+<div class="value text-green-600">${hosts>2?hosts-2:hosts}</div>
+</div>
+
+<div>
+<div class="label">Total Subredes</div>
+<div class="value">${subnets}</div>
+</div>
+`;
+}
+
+// TABLA
+function renderTable(baseNet,hosts,subnets){
+const table=document.getElementById("table");
+table.innerHTML="";
+
+const fragment=document.createDocumentFragment();
+const max=Math.min(subnets,256);
+
+for(let i=0;i<max;i++){
+const net=baseNet+(i*hosts);
+const first=net+1;
+const broadcast=net+hosts-1;
+const last=broadcast-1;
+
+const row=document.createElement("tr");
+
+row.innerHTML=`
+<td>${i+1}</td>
+<td class="text-blue-600 font-bold">${longToIp(net)}</td>
+<td class="text-green-600">${hosts>2?`${longToIp(first)} - ${longToIp(last)}`:"N/A"}</td>
+<td class="text-orange-600 font-semibold">${longToIp(broadcast)}</td>
+`;
+
+fragment.appendChild(row);
+}
+
+table.appendChild(fragment);
+}
+
+// ENTER
+document.getElementById("ipInput").addEventListener("keypress",e=>{
+if(e.key==="Enter") calculate();
+});
+
+window.onload=calculate;
+
+</script>
+
+<footer class="text-center text-xs text-slate-500 mt-10 pb-4">
+© 2026 ÄtherWache · Calculadora de Subredes IPv4 |
+<a href="https://github.com/DevSteven016DB" target="_blank" class="text-blue-600 hover:underline">
+Ver en GitHub
+</a>
+</footer>
+
+</body>
+</html>
